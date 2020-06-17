@@ -217,7 +217,7 @@ class CAMS:
         """
         def get_hydrophob(i,rh,wavel):
             pfx = os.path.split(os.path.realpath(__file__))[0]
-            fname = os.path.join(pfx,"aerosol_cams_ifs_optics.nc"
+            fname = os.path.join(pfx,"aerosol_cams_ifs_optics.nc")
             AERCFG = xr.open_dataset(fname)
             channels1 = np.concatenate((1./AERCFG.wavenumber1_lw[:-1],
                                         1./AERCFG.wavenumber1_sw[:-1]),axis=0)
