@@ -260,7 +260,7 @@ class CAMS:
     
         def get_hydrophil(i,rh,wavel):
             pfx = os.path.split(os.path.realpath(__file__))[0]
-            fname = os.path.join(pfx,"aerosol_ifs_rrtm_46R1_with_NI_AM.nc")
+            fname = os.path.join(pfx,"aerosol_cams_ifs_optics.nc")
             AERCFG = xr.open_dataset(fname)
             channels1 = np.concatenate((1./AERCFG.wavenumber1_lw[:-1],
                                         1./AERCFG.wavenumber1_sw[:-1]),axis=0)
@@ -307,6 +307,18 @@ class CAMS:
         else:
             rh = np.array(rh)
         AEROSOL = aerosol_type
+        
+        # SS1 -> Sea salt 0.03-0.5        OPAC
+        # SS2 -> Sea salt 0.5-5           OPAC
+        # SS3 -> Sea salt 5-20            OPAC
+        # DU1 -> Dust 0.03-0.55           Dubovic et al 2002
+        # DU2 -> Dust 0.55-0.9            Woodward et al 2001
+        # DU3 -> Dust 0.9-20              Fouquart et al 1987
+        # OM2 -> Organic Matter hydrophilic    OPAC-Mixture
+        # Om1 -> Organic Matter hydrophobic    OPAC Mixture at 20% humidity
+        # BC1 -> Black Carbon hydrophilic      OPAC (SOOT) (same as BC2 in CAMS)
+        # BC2 -> Black Carbon hydrophobic      OPAC (SOOT)
+        # SU  -> Sulfates                      Lacis et al (GACP)
         if AEROSOL =='DU1':
             mext,ssa,g = get_hydrophob(0,rh,wavel)
             mmr_key = 'aermr04'
