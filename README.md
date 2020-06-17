@@ -14,7 +14,7 @@ print(c._init__.__doc__)
 ```
 
 
->         This class loads up the cams surface (sfc) and model level (ml) files.
+>        This class loads up the cams surface (sfc) and model level (ml) files.
 >         Required parameters in files:
 >             sfc:
 >                 time,lat,lon - time, latitude, longitude
@@ -26,6 +26,17 @@ print(c._init__.__doc__)
 >                 hyam,hybm,hyai,hybi - factors for model level to pressure
 >                 q - specific humidity [kg kg-1] ID: 133
 >                 t - temperature [K] ID: 130
+>                 aermr01 - mixing ratio Sea salt aerosol (0.03 - 0.5um)    ID:210001
+>                 aermr02 - mixing ratio Sea salt aerosol (0.55 - 0.9um)    ID:210002
+>                 aermr03 - mixing ratio Sea salt aerosol (0.9 - 20um)      ID:210003
+>                 aermr04 - mixing ratio Dust Aerosol (0.03-0.55um)         ID:210004
+>                 aermr05 - mixing ratio Dust Aerosol (0.55 - 0.9um)        ID:210005
+>                 aermr06 - mixing ratio Dust Aerosol (0.9 - 20um)          ID:210006
+>                 aermr07 - mixing ratio hydrophilic organic matter aerosol ID:210007
+>                 aermr08 - mixing ratio hydrophobic organic matter aerosol ID:210008
+>                 aermr09 - mixing ratio hydrophilic black carbon aerosol   ID:210009
+>                 aermr10 - mixing ratio hydrophobic black carbon aerosol   ID:210010
+>                 aermr11 - mixing ratio Sulphate aerosol                   ID:210011
 > 
 >         Parameters
 >         ----------
