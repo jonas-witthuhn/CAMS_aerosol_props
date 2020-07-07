@@ -187,7 +187,7 @@ class CAMS:
         g = g/(1.+g)
         return od, ssa, g
 
-    def get_aerosol_props(self, aerosol_type, wavel):
+    def get_aerosol_props(self, aerosol_type, wavel, mono):
         """
         Calculate mass extinction, single scattering albedo and asymmetry parameter
 
@@ -208,8 +208,10 @@ class CAMS:
                 SU  -> Sulfates                      Lacis et al (GACP)
         wavel: array(n), float
             wavelength [nm]
-        rh: array(k0,..,kn), float
-            relative humidity [0-1] [-]
+        mono: bool,
+            If True use single wavelenghts for interpolation (340nm - 2130nm).
+            If False use spectral channel (ECRAD) integrated optical properties
+            to interpolate the optical props. (232nm - 25000nm)
 
         Returns
         -------
@@ -220,26 +222,48 @@ class CAMS:
         g: array(k0,..kn,n)
             asymmetry parameter[-]
         """
-        def get_hydrophob(i, rh, wavel):
+        def get_hydrophob(i, rh, wavel, mono):
             AERCFG = self.AERCFG
+            if mono:
+                cwvl = 1e9*AERCFG.wavelength_mono.values #[nm]
+            else:
+                channels1 = np.concatenate((1./AERCFG.wavenumber1_lw[:-1],
+                                            1./AERCFG.wavenumber1_sw[:-1]),axis=0)
+                channels2 = np.concatenate((1./AERCFG.wavenumber2_lw[:-1],
+                                            1./AERCFG.wavenumber2_sw[:-1]),axis=0)
+                cwvl=np.mean(np.vstack((channels1,channels2)),axis=0)
+                cwvl*= 1e7 #[nm]
 
-            cwvl = 1e9*AERCFG.wavelength_mono.values #[nm]
-
-            Y = AERCFG.mass_ext_mono_hydrophobic.values[i, :]
+            if mono:
+                Y = AERCFG.mass_ext_mono_hydrophobic.values[i, :]
+            else:
+                Y = np.concatenate((AERCFG.mass_ext_lw_hydrophobic.values[i,:-1],
+                                    AERCFG.mass_ext_sw_hydrophobic.values[i,:-1]),
+                                   axis=0)
             f = interp1d(cwvl, Y,
                          kind='cubic',
                          # kind='nearest',
                          fill_value='extrapolate')
             mext = f(wavel)
 
-            Y = AERCFG.ssa_mono_hydrophobic.values[i, :]
+            if mono:
+                Y = AERCFG.ssa_mono_hydrophobic.values[i, :]
+            else:
+                Y = np.concatenate((AERCFG.ssa_lw_hydrophobic.values[i,:-1],
+                                    AERCFG.ssa_sw_hydrophobic.values[i,:-1]),
+                                   axis=0)
             f = interp1d(cwvl, Y,
                          kind='cubic',
                          # kind='nearest',
                          fill_value='extrapolate')
             ssa = f(wavel)
 
-            Y = AERCFG.asymmetry_mono_hydrophobic.values[i, :]
+            if mono:
+                Y = AERCFG.asymmetry_mono_hydrophobic.values[i, :]
+            else:
+                Y = np.concatenate((AERCFG.asymmetry_lw_hydrophobic.values[i,:-1],
+                                    AERCFG.asymmetry_sw_hydrophobic.values[i,:-1]),
+                                   axis=0)
             f = interp1d(cwvl, Y,
                          kind='cubic',
                          # kind='nearest',
@@ -255,15 +279,28 @@ class CAMS:
                 g = np.expand_dims(g, axis=0)
             return mext, ssa, g
 
-        def get_hydrophil(i, rh, wavel):
+        def get_hydrophil(i, rh, wavel, mono):
             AERCFG = self.AERCFG
 
-            cwvl = 1e9*AERCFG.wavelength_mono.values #[nm]
+            if mono:
+                cwvl = 1e9*AERCFG.wavelength_mono.values #[nm]
+            else:
+                channels1 = np.concatenate((1./AERCFG.wavenumber1_lw[:-1],
+                                            1./AERCFG.wavenumber1_sw[:-1]),axis=0)
+                channels2 = np.concatenate((1./AERCFG.wavenumber2_lw[:-1],
+                                            1./AERCFG.wavenumber2_sw[:-1]),axis=0)
+                cwvl=np.mean(np.vstack((channels1,channels2)),axis=0)
+                cwvl*= 1e7 #[nm]
 
             rh1 = AERCFG.relative_humidity1.values
             ihum = np.searchsorted(rh1, rh)-1
 
-            Y = AERCFG.mass_ext_mono_hydrophilic.values[i, ihum, :]
+            if mono:
+                Y = AERCFG.mass_ext_mono_hydrophilic.values[i, ihum, :]
+            else:
+                Y = np.concatenate((AERCFG.mass_ext_lw_hydrophilic.values[i,ihum,:-1],
+                                    AERCFG.mass_ext_sw_hydrophilic.values[i,ihum,:-1]),
+                                   axis=-1)
             f = interp1d(cwvl, Y,
                          kind='cubic',
                          # kind='nearest',
@@ -271,7 +308,12 @@ class CAMS:
                          fill_value='extrapolate')
             mext = f(wavel)
 
-            Y = AERCFG.ssa_mono_hydrophilic.values[i, ihum, :]
+            if mono:
+                Y = AERCFG.ssa_mono_hydrophilic.values[i, ihum, :]
+            else:
+                Y = np.concatenate((AERCFG.ssa_lw_hydrophilic.values[i,ihum,:-1],
+                                    AERCFG.ssa_sw_hydrophilic.values[i,ihum,:-1]),
+                                   axis=-1)
             f = interp1d(cwvl, Y,
                          kind='cubic',
                          # kind='nearest',
@@ -279,7 +321,12 @@ class CAMS:
                          fill_value='extrapolate')
             ssa = f(wavel)
 
-            Y = AERCFG.asymmetry_mono_hydrophilic.values[i, ihum, :]
+            if mono:
+                Y = AERCFG.asymmetry_mono_hydrophilic.values[i, ihum, :]
+            else:
+                Y = np.concatenate((AERCFG.asymmetry_lw_hydrophilic.values[i,ihum,:-1],
+                                    AERCFG.asymmetry_sw_hydrophilic.values[i,ihum,:-1]),
+                                   axis=-1)
             f = interp1d(cwvl, Y,
                          kind='cubic',
                          # kind='nearest',
@@ -311,45 +358,45 @@ class CAMS:
         # BC2 -> Black Carbon hydrophobic      OPAC (SOOT)
         # SU  -> Sulfates                      Lacis et al (GACP)
         if AEROSOL == 'DU1':
-            mext, ssa, g = get_hydrophob(0, rh, wavel)
+            mext, ssa, g = get_hydrophob(0, rh, wavel,mono)
             mmr_key = 'aermr04'
         elif AEROSOL == 'DU2':
-            mext, ssa, g = get_hydrophob(7, rh, wavel)
+            mext, ssa, g = get_hydrophob(7, rh, wavel,mono)
             mmr_key = 'aermr05'
         elif AEROSOL == 'DU3':
-            mext, ssa, g = get_hydrophob(5, rh, wavel)
+            mext, ssa, g = get_hydrophob(5, rh, wavel,mono)
             mmr_key = 'aermr06'
         elif AEROSOL == 'BC1':
-            mext, ssa, g = get_hydrophob(10, rh, wavel)
+            mext, ssa, g = get_hydrophob(10, rh, wavel,mono)
             mmr_key = 'aermr09'
         elif AEROSOL == 'BC2':
-            mext, ssa, g = get_hydrophob(10, rh, wavel)
+            mext, ssa, g = get_hydrophob(10, rh, wavel,mono)
             mmr_key = 'aermr10'
         elif AEROSOL == 'SS1':
-            mext, ssa, g = get_hydrophil(0, rh, wavel)
+            mext, ssa, g = get_hydrophil(0, rh, wavel,mono)
             mmr_key = 'aermr01'
         elif AEROSOL == 'SS2':
-            mext, ssa, g = get_hydrophil(1, rh, wavel)
+            mext, ssa, g = get_hydrophil(1, rh, wavel,mono)
             mmr_key = 'aermr02'
         elif AEROSOL == 'SS3':
-            mext, ssa, g = get_hydrophil(2, rh, wavel)
+            mext, ssa, g = get_hydrophil(2, rh, wavel,mono)
             mmr_key = 'aermr03'
         elif AEROSOL == 'SU':
-            mext, ssa, g = get_hydrophil(4, rh, wavel)
+            mext, ssa, g = get_hydrophil(4, rh, wavel,mono)
             mmr_key = 'aermr11'
         elif AEROSOL == 'OM1':
-            mext, ssa, g = get_hydrophob(9, rh, wavel)
+            mext, ssa, g = get_hydrophob(9, rh, wavel,mono)
             mmr_key = 'aermr08'
         elif AEROSOL == 'OM2':
-            mext, ssa, g = get_hydrophil(3, rh, wavel)
+            mext, ssa, g = get_hydrophil(3, rh, wavel,mono)
             mmr_key = 'aermr07'
         return mmr_key, mext, ssa, g
 
-    def aerosol_optprop(self, wvl, delta_eddington=False):
+    def aerosol_optprop(self, wvl, delta_eddington=False,mono=True):
         """
         calculate spectral optical properties of CAMS aerosol.
         aod - spectral aerosol optical depth
-        ext - spectral extinction coefficient
+        ext - spectral extinction coefficient [km-1]
         ssa - spectral single scattering albedo
         g   - spectral asymmetry parameter
 
@@ -357,9 +404,14 @@ class CAMS:
         ----------
         wvl : float, array(n)
             spectral wavelength [nm]
-        delta_eddington. bool, (optional)
+        delta_eddington : bool, (optional)
             switch on delta eddington scaling of the phase function if True.
             The default value is: False.
+        mono : bool, (optional)
+            If True, use optical properties calculated for single wavelengths.
+            This is preferable, but only useable for shortwave calculation [340nm - 2130nm].
+            For wavelenghts >2130nm consider switching to band wise optical 
+            properties [232nm - 25000nm](False). The default is True.
 
         Returns
         -------
@@ -380,7 +432,7 @@ class CAMS:
         scatg_ml = np.zeros(od_ext_ml.shape)
 
         for AEROSOL in ['SS1', 'SS2', 'SS3', 'DU1', 'DU2', 'DU3', 'OM1', 'OM2', 'BC1', 'BC2', 'SU']:
-            mmr_key, mext, ssa, g = self.get_aerosol_props(AEROSOL, wvl)
+            mmr_key, mext, ssa, g = self.get_aerosol_props(AEROSOL, wvl, mono)
             mmr = flatten_coords(self.cams_ml[mmr_key].values, idx_keep=1)
             local_od = mmr[:, :, np.newaxis] * f[:, :, np.newaxis] * mext
             od_ext_ml += local_od.copy()
