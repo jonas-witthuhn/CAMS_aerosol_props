@@ -440,12 +440,17 @@ class CAMS:
             scatg_ml += local_od.copy() * ssa * g
 
         # optical properties of individual layers
-        with np.errstate(divide='ignore', invalid='ignore'):
-            g_ml = scatg_ml / od_scat_ml # asymmetry parameter
-            ssa_ml = od_scat_ml / od_ext_ml # single scattering albedo
-            aod_ml = od_ext_ml # aerosol optical depth [-]
-            dz = np.abs(np.diff(self.z_ilvl))*1e-3 # layer depth [km]
-            ext_ml = aod_ml / dz[:, :, np.newaxis] # extinction coefficient [km-1]
+        g_ml = np.zeros(od_scat_ml.shape)
+        ssa_ml = np.zeros(od_scat_ml.shape)
+
+        # calculate g and ssa only if denominator is not zero
+        # else they default to zero
+        idx = od_ext_ml!=0
+        g_ml[idx] = scatg_ml[idx] / od_scat_ml[idx]
+        ssa_ml[idx] = od_scat_ml[idx] / od_ext_ml[idx] 
+        aod_ml = od_ext_ml # aerosol optical depth [-]
+        dz = np.abs(np.diff(self.z_ilvl))*1e-3 # layer depth [km]
+        ext_ml = aod_ml / dz[:, :, np.newaxis] # extinction coefficient [km-1]
 
         if delta_eddington:
             aod_ml, ssa_ml, g_ml = self._scale_delta_eddington(aod_ml,
