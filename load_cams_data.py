@@ -15,7 +15,15 @@ from scipy.interpolate import interp1d
 import sunpos as sp
 
 class CAMS:
-    def __init__(self, cams_sfc_file, cams_ml_file, opt_prop_file = None, scale_altitude = None, scale_sfcpressure=None):
+    def __init__(self,
+                 cams_sfc_file,
+                 cams_ml_file,
+                 opt_prop_file = None,
+                 scale_altitude = None,
+                 scale_sfcpressure=None,
+                 interp_time=None,
+                 interp_lat=None,
+                 interp_lon=None):
         """
         This class loads up the cams surface (sfc) and model level (ml) files.
         Required parameters in files:
@@ -60,8 +68,29 @@ class CAMS:
         ### cams files
         cams_ml = xr.open_dataset(cams_ml_file)
         cams_sfc = xr.open_dataset(cams_sfc_file)
+        
+        # remove psfc nan from edge
+        cams_sfc = cams_sfc.dropna('lat',how='all',subset=['psfc'])
+        cams_sfc = cams_sfc.dropna('lon',how='all',subset=['psfc'])
+        cams_ml = cams_ml.reindex_like(cams_sfc)
+        
+        # interpolate if requested
+        if type(interp_time) != type(None):
+            cams_sfc = cams_sfc.interp({'time':interp_time}).dropna('time')
+            cams_ml = cams_ml.interp({'time':interp_time}).dropna('time')
+        if type(interp_lat) != type(None):
+            cams_sfc = cams_sfc.interp({'lat':interp_lat}).dropna('lat')
+            cams_ml = cams_ml.interp({'lat':interp_lat}).dropna('lat')
+        if type(interp_lon) != type(None):
+            cams_sfc = cams_sfc.interp({'lon':interp_lon}).dropna('lon')
+            cams_ml = cams_ml.interp({'lon':interp_lon}).dropna('lon')
+        
+        
+        
         self.cams_ml = cams_ml
         self.cams_sfc = cams_sfc
+        
+        
 
         # coordinates
         times, lats, lons = np.meshgrid(cams_ml.time, cams_ml.lat, cams_ml.lon,
