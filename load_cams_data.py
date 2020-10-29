@@ -20,7 +20,7 @@ class CAMS:
                  cams_ml_file,
                  opt_prop_file = None,
                  scale_altitude = None,
-                 scale_sfcpressure=None,
+                 scale_sfcpressure = None,
                  interp_time=None,
                  interp_lat=None,
                  interp_lon=None):
@@ -56,7 +56,14 @@ class CAMS:
         cams_ml_file : str
             path and filename to CAMS RA model level netcdf file
         """
-
+        self.kwargs = dict(cams_sfc_file = cams_sfc_file,
+                           cams_ml_file = cams_ml_file,
+                           opt_prop_file = opt_prop_file,
+                           scale_altitude = scale_altitude,
+                           scale_sfcpressure = scale_sfcpressure,
+                           interp_time=interp_time,
+                           interp_lat=interp_lat,
+                           interp_lon=interp_lon)
         ### aerosol prop config
         if opt_prop_file == None:
             pfx = os.path.split(os.path.realpath(__file__))[0]
@@ -84,14 +91,9 @@ class CAMS:
         if type(interp_lon) != type(None):
             cams_sfc = cams_sfc.interp({'lon':interp_lon}).dropna('lon')
             cams_ml = cams_ml.interp({'lon':interp_lon}).dropna('lon')
-        
-        
-        
         self.cams_ml = cams_ml
         self.cams_sfc = cams_sfc
         
-        
-
         # coordinates
         times, lats, lons = np.meshgrid(cams_ml.time, cams_ml.lat, cams_ml.lon,
                                         indexing='ij')
@@ -117,7 +119,6 @@ class CAMS:
                                              cams_ml.hybi.data)
         self.P_mlvl = self.calc_lvl_pressure(cams_ml.hyam.data,
                                              cams_ml.hybm.data)
-
         # geopotential at surface scaled to altitude if needed
         # scaling is done only if both scale_altitude and scale_sfcpressure is known
         # _scale at the end of __init__ will calculate the missing and run __init__ again
@@ -126,11 +127,12 @@ class CAMS:
             self.Q_sfc = scale_altitude.flatten()*9.80665
         else:
             self.Q_sfc = cams_sfc.geop.values.flatten()
-
         # temperature [K]
         self.T_mlvl = flatten_coords(cams_ml.t.data, 1)
-        self.T_sfc = cams_sfc.tsfc.values.flatten()
-
+        try:
+            self.T_sfc = cams_sfc.tsfc.values.flatten()
+        except:
+            self.T_sfc = cams_sfc.t2m.values.flatten()
         # specific humidity [kg/kg]
         self.q = flatten_coords(cams_ml.q.values, idx_keep=1)
 
@@ -145,9 +147,17 @@ class CAMS:
         self.z_mlvl = self.Q_mlvl / 9.80665
         self.z_ilvl = self.Q_ilvl / 9.80665
 
-        self._scale(cams_sfc_file, cams_ml_file, opt_prop_file, scale_altitude,scale_sfcpressure)
-
-    def _scale(self,cams_sfc_file, cams_ml_file, opt_prop_file,scale_altitude,scale_sfcpressure):
+        #self._scale(cams_sfc_file, cams_ml_file, opt_prop_file, scale_altitude,scale_sfcpressure)
+        self._scale()
+        
+    def _scale(self):
+        """ 
+        if only one of scale_altitude and scale_sfcpressure is given,
+        calculate the counterpart accordingly and run init again.
+        Therefore altitude and surface pressure are consistent.
+        """
+        scale_altitude = self.kwargs['scale_altitude']
+        scale_sfcpressure = self.kwargs['scale_sfcpressure']
         # if we dont know the sfc pressure but scale to altitude
         # we have to find the appropriate sfc pressure by interpolating
         # interface pressure to geometric altitude
@@ -161,7 +171,9 @@ class CAMS:
                 psfc.append(f(altitude[i]))
             psfc=np.array(psfc).reshape(self.cams_sfc.psfc.data.shape)
             # run init again, now with known sfc pressure
-            self.__init__(cams_sfc_file, cams_ml_file, opt_prop_file = opt_prop_file, scale_altitude = scale_altitude, scale_sfcpressure=psfc)
+            kwargs = self.kwargs.copy()
+            kwargs.pop('scale_sfcpressure')
+            self.__init__(scale_sfcpressure=psfc,**kwargs)
         # if we dont know the altitude but want to scale sfc pressure,
         # we have to interpolate the altitude from the geometric hights
         elif (type(scale_altitude) == type(None)) and (type(scale_sfcpressure) != type(None)):
@@ -171,10 +183,12 @@ class CAMS:
             # iterate of all columns
             for i in range(len(self.times)):
                 f = interp1d(self.P_ilvl[i,1:],self.z_ilvl[i,1:],kind='linear',fill_value='extrapolate')
-                alts.append(f(sfc_pressure[i]))
+                alts.append(f(sfcpressure[i]))
             alts = np.array(alts).reshape(self.cams_sfc.psfc.data.shape)
             # run init again, now with known altitude
-            self.__init__(cams_sfc_file, cams_ml_file, opt_prop_file = opt_prop_file, scale_altitude = alts, scale_sfcpressure=scale_sfcpressure)
+            kwargs = self.kwargs.copy()
+            kwargs.pop('scale_altitude')
+            self.__init__(scale_altitude = alts, **kwargs)
 
 
     def _area_density(self):
