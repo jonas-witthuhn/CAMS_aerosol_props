@@ -45,7 +45,21 @@ print(c._init__.__doc__)
 >         cams_ml_file : str
 >             path and filename to CAMS RA model level netcdf file
 
-now calculate aerosol properties at desired wavelengths:
+
+## Atmosphere props:
+You can lookup e.g. geopotential (Q), geometrical heigth (z), relative (rh) and specific (q) humidity, virtual temperature (Tv), pressure (P), temperature (T). At layer midpoints (mlvl) and layer interfaces (ilvl) and surface (sfc).
+
+For example:
+```
+z_mlvl = c.z_mlvl # geometrical heigth at layer midpoints
+z_ilvl = c.z_ilvl # geometrical heigth at layer interface
+
+```
+
+
+
+## Aerosol props:
+Also you can calculate aerosol properties at desired wavelengths:
 
 ```
 AP_sfc,AP_ml = c.aerosol_optprop([469.,550,670,865,1240])
