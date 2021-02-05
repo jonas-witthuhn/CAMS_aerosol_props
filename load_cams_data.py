@@ -12,7 +12,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 # Hartwigs sunpos routine
-import sunpos as sp
+from trosat import sunpos as sp
 
 class CAMS:
     def __init__(self,
