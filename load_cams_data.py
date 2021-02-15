@@ -102,8 +102,7 @@ class CAMS:
         self.lons = lons.flatten()
 
         ## calculate cosine of zenith angle
-        jd = sp.datetime2julday(self.times)
-        self.sza, self.azi = sp.zenith_azimuth(jd, self.lats, self.lons)
+        self.sza, self.azi = sp.sun_angles(self.times, self.lats, self.lons)
         self.mu0 = np.cos(np.deg2rad(self.sza))
 
         # scale to sfc pressure if needed
