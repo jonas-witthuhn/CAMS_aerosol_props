@@ -143,9 +143,9 @@ class CAMS:
         # geopotential at layer interfaces and layer mid points [m2/s2]
         self.calc_Q()
         # geometric heights [m]
-        self.Q2z
+        self.Q2z()
         # geopotential heights [m]
-        self.Q2Z
+        self.Q2Z()
         
         # scale to altitue/pressure
         self._scale()
@@ -283,7 +283,7 @@ class CAMS:
             if N+iup == 0:
                 a = np.log(2)
                 logP = np.log(P[:, ilow]/1e-9) # avoid pressure = 0 at TOA
-                Qi[:, iup] = Qi[:, ilow] + Rd*TVm[:, imid]*logP
+                Qi[:, iup] = Qi[:, ilow] + Rd*Tv[:, imid]*logP
             else:
                 logP = np.log(P[:, ilow]/P[:, iup])
                 Qi[:, iup] = Qi[:, ilow] + Rd*Tv[:, imid]*logP
