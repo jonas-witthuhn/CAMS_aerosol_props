@@ -142,11 +142,12 @@ class CAMS:
         self.calc_Tv()
         # geopotential at layer interfaces and layer mid points [m2/s2]
         self.calc_Q()
-        # geometric hights [m]
-        self.z_mlvl = self.Q_mlvl / 9.80665
-        self.z_ilvl = self.Q_ilvl / 9.80665
-
-        #self._scale(cams_sfc_file, cams_ml_file, opt_prop_file, scale_altitude,scale_sfcpressure)
+        # geometric heights [m]
+        self.Q2z
+        # geopotential heights [m]
+        self.Q2Z
+        
+        # scale to altitue/pressure
         self._scale()
         
     def _scale(self):
@@ -181,7 +182,8 @@ class CAMS:
             alts = []
             # iterate of all columns
             for i in range(len(self.times)):
-                f = interp1d(self.P_ilvl[i,1:],self.z_ilvl[i,1:],kind='linear',fill_value='extrapolate')
+                f = interp1d(self.P_ilvl[i,1:],self.z_ilvl[i,1:],
+                             kind='linear',fill_value='extrapolate')
                 alts.append(f(sfcpressure[i]))
             alts = np.array(alts).reshape(self.cams_sfc.psfc.data.shape)
             # run init again, now with known altitude
@@ -197,7 +199,39 @@ class CAMS:
         # tau = mext * rho * dz
         #     = mext * f
         # f = dp / g
-        return np.diff(self.P_ilvl)/9.80665
+        return np.diff(self.P_ilvl)/CONSTANTS.g0
+
+    def g(self):
+        """approximate gravity [m/s2] at geometrical height [m]"""
+        self.g_mlvl=CONSTANTS.g0*(CONSTANTS.RE/(CONSTANTS.RE+self.z_mlvl))**2
+        self.g_ilvl=CONSTANTS.g0*(CONSTANTS.RE/(CONSTANTS.RE+self.z_ilvl))**2
+        return 0
+        
+    def Q2Z(self):
+        """Convert from geopotential [m2/s2] to geopotential height [m]"""
+        self.Z_ilvl = self.Q_ilvl/CONSTANTS.g0
+        self.Z_mlvl = self.Q_mlvl/CONSTANTS.g0
+        return 0
+        
+    def Z2Q(self):
+        """Convert from geopotential  height [m] to geopotential [m2/s2]"""
+        self.Q_ilvl = self.Z_ilvl*CONSTANTS.g0
+        self.Q_mlvl = self.Z_mlvl*CONSTANTS.g0
+        return 0
+    
+    def Q2z(self):
+        """Convert from geopotential [m2/s2] to geometrical height [m]
+        Hobbs2006: Hobbs, P. V., and J. M. Wallace, 2006: Atmospheric Science: An Introductory Survey. 2nd ed. Academic Press, 504 pp."""
+        self.z_ilvl = (self.Q_ilvl*CONSTANTS.RE) / (CONSTANTS.g0*CONSTANTS.RE - self.Q_ilvl)
+        self.z_mlvl = (self.Q_mlvl*CONSTANTS.RE) / (CONSTANTS.g0*CONSTANTS.RE - self.Q_mlvl)
+        return 0
+        
+    def z2Q(self):
+        """Convert from geometrical height [m] to geopotential [m2/s2]
+        Hobbs2006: Hobbs, P. V., and J. M. Wallace, 2006: Atmospheric Science: An Introductory Survey. 2nd ed. Academic Press, 504 pp."""
+        self.Q_ilvl =  CONSTANTS.g0 * (self.z_ilvl*CONSTANTS.RE)/(self.z_ilvl + CONSTANTS.RE)
+        self.Q_mlvl =  CONSTANTS.g0 * (self.z_mlvl*CONSTANTS.RE)/(self.z_mlvl + CONSTANTS.RE)
+        return 0
 
     def calc_lvl_pressure(self, A, B):
         """calculate model level pressure (interface or half level) from defined
@@ -246,13 +280,15 @@ class CAMS:
         iup = -2
         imid = -1
         while N+iup >= 0:
-            with np.errstate(divide='ignore', invalid='ignore'):
+            if N+iup == 0:
+                a = np.log(2)
+                logP = np.log(P[:, ilow]/1e-9) # avoid pressure = 0 at TOA
+                Qi[:, iup] = Qi[:, ilow] + Rd*TVm[:, imid]*logP
+            else:
                 logP = np.log(P[:, ilow]/P[:, iup])
                 Qi[:, iup] = Qi[:, ilow] + Rd*Tv[:, imid]*logP
                 dP = P[:, ilow]-P[:, iup]
                 a = 1. - (P[:, iup]/dP)*logP
-            if N+iup == 0:
-                a = np.log(2)
             Qm[:, imid] = Qi[:, ilow] + a*Rd*Tv[:, imid]
             ilow -= 1
             iup -= 1
@@ -608,6 +644,10 @@ class CONSTANTS:
     # specific gas constants
     Rdry = R / (Mm_dry/1000.) # [J kg-1 K-1]
     Rwv = R / (Mm_wv/1000.)
+    # gravitation [m s-2]
+    g0 = 9.80665
+    # mean Earth radius [m]
+    RE = 6.3781e6
 
 
 def flatten_coords(A, idx_keep=1):
