@@ -11,7 +11,6 @@ import xarray as xr
 import numpy as np
 from scipy.interpolate import interp1d
 
-# Hartwigs sunpos routine
 from trosat import sunpos as sp
 
 class CAMS:
@@ -23,7 +22,8 @@ class CAMS:
                  scale_sfcpressure = None,
                  interp_time=None,
                  interp_lat=None,
-                 interp_lon=None):
+                 interp_lon=None,
+                 combine_latlon=False):
         """
         This class loads up the cams surface (sfc) and model level (ml) files.
         Required parameters in files:
@@ -63,7 +63,8 @@ class CAMS:
                            scale_sfcpressure = scale_sfcpressure,
                            interp_time=interp_time,
                            interp_lat=interp_lat,
-                           interp_lon=interp_lon)
+                           interp_lon=interp_lon,
+                           combine_latlon=combine_latlon) 
         ### aerosol prop config
         if opt_prop_file == None:
             pfx = os.path.split(os.path.realpath(__file__))[0]
@@ -94,12 +95,47 @@ class CAMS:
         self.cams_ml = cams_ml
         self.cams_sfc = cams_sfc
         
-        # coordinates
-        times, lats, lons = np.meshgrid(cams_ml.time, cams_ml.lat, cams_ml.lon,
-                                        indexing='ij')
-        self.times = times.flatten()
-        self.lats = lats.flatten()
-        self.lons = lons.flatten()
+        if combine_latlon:
+            ### lat lon are coordinates of single stations, so we dont have to use a full grid
+            ### lat lon have to have the same shape
+            if (type(interp_lon) == type(None)) or (type(interp_lon) == type(None)) or (len(interp_lon)!=len(interp_lat)):
+                raise ValueError("combine_latlon = True,"+
+                                 " works only if interp_lon and interp_lat"+
+                                 "are set and of the same shape, (one dimensional, same length)")
+                
+
+            for key in cams_sfc.keys(): 
+                if len(cams_sfc[key].shape)<3:
+                    continue
+                cams_sfc = cams_sfc.assign({key:(('time','col'),
+                                                 np.diagonal(cams_sfc[key].values,axis1=1,axis2=2))})
+
+            for key in cams_ml.keys():    
+                if len(cams_ml[key].shape)<4:
+                    continue
+                cams_ml = cams_ml.assign({key:(('time','lev','col'),
+                                               np.diagonal(cams_ml[key].values,axis1=2,axis2=3))})
+
+
+            cams_sfc = cams_sfc.swap_dims({'lat':'col','lon':'col'})
+            cams_ml = cams_ml.swap_dims({'lat':'col','lon':'col'})
+
+            self.cams_ml = cams_ml
+            self.cams_sfc = cams_sfc
+            # coordinates
+            times, lats = np.meshgrid(cams_ml.time, cams_ml.lat,indexing='ij')
+            times, lons = np.meshgrid(cams_ml.time, cams_ml.lon,indexing='ij')
+            self.times = times.flatten()
+            self.lats = lats.flatten()
+            self.lons = lons.flatten()
+        
+        else:
+            # coordinates
+            times, lats, lons = np.meshgrid(cams_ml.time, cams_ml.lat, cams_ml.lon,
+                                            indexing='ij')
+            self.times = times.flatten()
+            self.lats = lats.flatten()
+            self.lons = lons.flatten()
 
         ## calculate cosine of zenith angle
         self.sza, self.azi = sp.sun_angles(self.times, self.lats, self.lons)
@@ -123,7 +159,9 @@ class CAMS:
         # _scale at the end of __init__ will calculate the missing and run __init__ again
         if type(scale_altitude) != type(None) and type(scale_sfcpressure) != type(None):
             # scale to altitude
-            self.Q_sfc = scale_altitude.flatten()*9.80665
+            self.Q_sfc = CONSTANTS.g0 * (scale_altitude.flatten()*CONSTANTS.RE)
+            self.Q_sfc/= (scale_altitude.flatten() + CONSTANTS.RE)
+#             self.Q_sfc = scale_altitude.flatten()*9.80665
         else:
             self.Q_sfc = cams_sfc.geop.values.flatten()
         # temperature [K]
@@ -147,7 +185,7 @@ class CAMS:
         # geopotential heights [m]
         self.Q2Z()
         
-        # scale to altitue/pressure
+        # scale to altitude/pressure
         self._scale()
         
     def _scale(self):
@@ -175,7 +213,7 @@ class CAMS:
             kwargs.pop('scale_sfcpressure')
             self.__init__(scale_sfcpressure=psfc,**kwargs)
         # if we dont know the altitude but want to scale sfc pressure,
-        # we have to interpolate the altitude from the geometric hights
+        # we have to interpolate the altitude from the geometric heights
         elif (type(scale_altitude) == type(None)) and (type(scale_sfcpressure) != type(None)):
             sfcpressure = scale_sfcpressure.flatten()
             # interpolate altitude from pressure levels
