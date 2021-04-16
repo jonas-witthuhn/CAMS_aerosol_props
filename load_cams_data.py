@@ -55,6 +55,12 @@ class CAMS:
             path and filename to CAMS RA surface netcdf file
         cams_ml_file : str
             path and filename to CAMS RA model level netcdf file
+            
+        TODO
+        ----
+            * Implement check or automatic reshape of scale_altitude and scale_pressure
+              as they have to be the same shape as cams_sfc after interpolation and nan filter
+            * update this description
         """
         self.kwargs = dict(cams_sfc_file = cams_sfc_file,
                            cams_ml_file = cams_ml_file,
@@ -84,8 +90,10 @@ class CAMS:
         
         # interpolate if requested
         if type(interp_time) != type(None):
-            cams_sfc = cams_sfc.interp({'time':interp_time}).dropna('time')
-            cams_ml = cams_ml.interp({'time':interp_time}).dropna('time')
+            cams_sfc = cams_sfc.interp(coords={'time':interp_time},
+                                       kwargs=dict(fill_value='extrapolate'))
+            cams_ml = cams_ml.interp(coords={'time':interp_time},
+                                     kwargs=dict(fill_value='extrapolate'))
         if type(interp_lat) != type(None):
             cams_sfc = cams_sfc.interp({'lat':interp_lat}).dropna('lat')
             cams_ml = cams_ml.interp({'lat':interp_lat}).dropna('lat')
@@ -140,6 +148,7 @@ class CAMS:
         ## calculate cosine of zenith angle
         self.sza, self.azi = sp.sun_angles(self.times, self.lats, self.lons)
         self.mu0 = np.cos(np.deg2rad(self.sza))
+        
 
         # scale to sfc pressure if needed
         # scaling is done only if both scale_altitude and scale_sfcpressure is known
@@ -149,11 +158,15 @@ class CAMS:
         else:
             ## calculate pressure [Pa] at level interfaces and midpoints
             self.P_sfc = cams_sfc.psfc.data.flatten() # surface pressure
+            
+
         # pressure at half-level -> shape(col, half_level)
         self.P_ilvl = self.calc_lvl_pressure(cams_ml.hyai.data,
                                              cams_ml.hybi.data)
         self.P_mlvl = self.calc_lvl_pressure(cams_ml.hyam.data,
                                              cams_ml.hybm.data)
+        
+
         # geopotential at surface scaled to altitude if needed
         # scaling is done only if both scale_altitude and scale_sfcpressure is known
         # _scale at the end of __init__ will calculate the missing and run __init__ again
@@ -164,6 +177,8 @@ class CAMS:
 #             self.Q_sfc = scale_altitude.flatten()*9.80665
         else:
             self.Q_sfc = cams_sfc.geop.values.flatten()
+            
+ 
         # temperature [K]
         self.T_mlvl = flatten_coords(cams_ml.t.data, 1)
         try:
