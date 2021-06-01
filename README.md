@@ -2,6 +2,9 @@
 
 Load CAMS RA netcdf files and calculate spectral aerosol properties. (AOD, EXT, SSA, G)
 
+## install
+`pip install git+https://github.com/jonas-witthuhn/CAMS_aerosol_props.git#egg=CAMS_aerosol_props`
+
 ## usage
 load up the cams netcdf files:
 ```
